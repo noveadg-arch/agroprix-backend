@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+data/agroprix.db
+*.db
+.DS_Store
