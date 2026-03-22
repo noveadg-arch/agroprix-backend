@@ -4,7 +4,5 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p data
-RUN chmod +x start.sh
 EXPOSE 8000
-ENTRYPOINT ["/bin/sh"]
-CMD ["start.sh"]
+CMD ["python", "run.py"]
