@@ -172,5 +172,10 @@ def init_db() -> None:
         db_path = DATABASE_URL.replace("sqlite:///", "")
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-    engine = get_engine()
-    metadata.create_all(engine)
+    try:
+        engine = get_engine()
+        metadata.create_all(engine)
+        print("[AgroPrix] Database initialized successfully")
+    except Exception as e:
+        print(f"[AgroPrix] WARNING: Database init failed: {e}")
+        print("[AgroPrix] App will start but DB operations may fail")

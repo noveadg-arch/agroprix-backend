@@ -154,6 +154,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https://*.tile.openstreetmap.org; "
-            "connect-src 'self' http://localhost:*"
+            "connect-src 'self' http://localhost:* https://*.railway.app https://*.vercel.app https://agroprix.app https://*.agroprix.app"
         )
         return response

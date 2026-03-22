@@ -23,3 +23,4 @@ Thumbs.db
 # Data
 data/*.csv
 data/*.json
+data/*.db
