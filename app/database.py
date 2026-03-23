@@ -102,6 +102,15 @@ users = Table(
     Column("country", String, default="benin"),
     Column("created_at", DateTime, default=func.now()),
     Column("last_login", DateTime, nullable=True),
+    # Enriched profile (CGU data)
+    Column("cultures", String, nullable=True),          # JSON array: ["mais","cajou"]
+    Column("superficie", Float, nullable=True),          # hectares
+    Column("genre", String, nullable=True),              # homme/femme
+    Column("age", Integer, nullable=True),
+    Column("experience", Integer, nullable=True),        # years
+    Column("type_exploitation", String, nullable=True),  # individuel/cooperative/entreprise
+    Column("membre_cooperative", String, nullable=True), # yes/no + name
+    Column("profil_type", String, nullable=True),        # producteur/negociant/exportateur/proprietaire
 )
 
 Index("ix_users_email", users.c.email)

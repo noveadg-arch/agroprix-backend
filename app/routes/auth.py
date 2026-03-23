@@ -47,6 +47,14 @@ class UpdateProfileRequest(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     country: Optional[str] = None
+    cultures: Optional[str] = None           # JSON array string: '["mais","cajou"]'
+    superficie: Optional[float] = None       # hectares
+    genre: Optional[str] = None              # homme/femme
+    age: Optional[int] = None
+    experience: Optional[int] = None         # years
+    type_exploitation: Optional[str] = None  # individuel/cooperative/entreprise
+    membre_cooperative: Optional[str] = None # yes/no + name
+    profil_type: Optional[str] = None        # producteur/negociant/exportateur/proprietaire
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +82,14 @@ def _user_response(row: Dict) -> Dict:
         "cree_le": str(row.get("created_at", "")),
         "derniere_connexion": str(row.get("last_login", "")),
         "rate_limit": _RATE_LIMIT_BY_ROLE.get(role, RATE_LIMIT_FREE),
+        "cultures": row.get("cultures"),
+        "superficie": row.get("superficie"),
+        "genre": row.get("genre"),
+        "age": row.get("age"),
+        "experience": row.get("experience"),
+        "type_exploitation": row.get("type_exploitation"),
+        "membre_cooperative": row.get("membre_cooperative"),
+        "profil_type": row.get("profil_type"),
     }
 
 
@@ -226,6 +242,22 @@ async def update_me(
         update_values["phone"] = body.phone
     if body.country is not None:
         update_values["country"] = body.country
+    if body.cultures is not None:
+        update_values["cultures"] = body.cultures
+    if body.superficie is not None:
+        update_values["superficie"] = body.superficie
+    if body.genre is not None:
+        update_values["genre"] = body.genre
+    if body.age is not None:
+        update_values["age"] = body.age
+    if body.experience is not None:
+        update_values["experience"] = body.experience
+    if body.type_exploitation is not None:
+        update_values["type_exploitation"] = body.type_exploitation
+    if body.membre_cooperative is not None:
+        update_values["membre_cooperative"] = body.membre_cooperative
+    if body.profil_type is not None:
+        update_values["profil_type"] = body.profil_type
 
     if not update_values:
         raise HTTPException(
