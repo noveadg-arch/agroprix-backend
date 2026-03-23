@@ -1,16 +1,29 @@
 """
 Price endpoints — the core of AgroPrix.
 Query market prices, monthly aggregations, markets, commodities, and regional comparisons.
+Includes crowdsourced price contributions.
 """
 
-from fastapi import APIRouter, Query, HTTPException
-from typing import Optional
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Dict, Optional
+from pydantic import BaseModel
 from sqlalchemy import text
 
-from app.database import get_engine, sql_year_month
+from app.auth import get_current_user
+from app.database import get_engine, prices, sql_year_month
 from app.config import UEMOA_COUNTRIES
 
 router = APIRouter(prefix="", tags=["prices"])
+
+
+class ContributePrice(BaseModel):
+    country: str
+    market: str
+    commodity: str
+    price: float
+    unit: Optional[str] = "KG"
+    currency: Optional[str] = "XOF"
 
 
 @router.get("/")
@@ -199,3 +212,46 @@ async def compare_regional(
         engine.dispose()
 
     return {"count": len(rows), "data": rows}
+
+
+# ---------------------------------------------------------------------------
+# POST /contribute - Crowdsourced price submission
+# ---------------------------------------------------------------------------
+
+@router.post("/contribute", status_code=201)
+async def contribute_price(
+    body: ContributePrice,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Submit a crowdsourced price observation. Requires authentication."""
+    engine = get_engine()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            prices.insert().values(
+                country=body.country,
+                market=body.market,
+                commodity=body.commodity,
+                price=body.price,
+                currency=body.currency or "XOF",
+                unit=body.unit or "KG",
+                date=today,
+                source="crowdsource",
+            )
+        )
+        price_id = result.inserted_primary_key[0]
+
+    return {
+        "id": price_id,
+        "message": "Prix enregistre. Merci pour votre contribution !",
+        "data": {
+            "country": body.country,
+            "market": body.market,
+            "commodity": body.commodity,
+            "price": body.price,
+            "date": today,
+            "source": "crowdsource",
+            "contributor": current_user.get("name", "anonyme"),
+        }
+    }
