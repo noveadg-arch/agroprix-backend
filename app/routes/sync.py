@@ -74,6 +74,53 @@ async def sync_everything():
     return results
 
 
+@router.post("/seed")
+async def seed_prices():
+    """Inject initial price data for all UEMOA countries."""
+    from datetime import datetime, timedelta
+    import random
+    random.seed(2026)
+
+    engine = get_engine()
+    countries_markets = {
+        "benin": ["Dantokpa (Cotonou)", "Bohicon", "Parakou", "Malanville", "Glazoue", "Azove", "Natitingou", "Ketou"],
+        "burkina": ["Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Ouahigouya"],
+        "cote_ivoire": ["Abidjan", "Bouake", "Daloa", "Korhogo"],
+        "mali": ["Bamako", "Sikasso", "Mopti", "Segou"],
+        "niger": ["Niamey", "Maradi", "Zinder", "Agadez"],
+        "senegal": ["Dakar", "Saint-Louis", "Kaolack", "Thies"],
+        "togo": ["Lome", "Kara", "Sokode", "Atakpame"],
+        "guinee_bissau": ["Bissau", "Bafata", "Gabu"],
+    }
+    commodities_prices = {
+        "Mais": 250, "Riz": 450, "Sorgho": 180, "Mil": 200, "Niebe": 500,
+        "Manioc": 150, "Igname": 400, "Tomate": 800, "Oignon": 350,
+        "Arachide": 600, "Cajou": 1200, "Soja": 380, "Piment": 900,
+        "Plantain": 320, "Ananas": 280, "Sesame": 700, "Karite": 450,
+        "Cafe": 1500, "Cacao": 1800, "Coton": 350, "Hevea": 650,
+    }
+
+    inserted = 0
+    try:
+        with engine.begin() as conn:
+            for country, markets in countries_markets.items():
+                for market in markets:
+                    for commodity, base_price in commodities_prices.items():
+                        for days_ago in [0, 7, 14, 30]:
+                            price = base_price + random.randint(-int(base_price*0.15), int(base_price*0.15))
+                            d = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+                            conn.execute(text("""
+                                INSERT INTO prices (country, market, commodity, price, currency, unit, date, source)
+                                VALUES (:country, :market, :commodity, :price, 'XOF', 'KG', :date, 'seed')
+                                ON CONFLICT DO NOTHING
+                            """), {"country": country, "market": market, "commodity": commodity, "price": price, "date": d})
+                            inserted += 1
+    finally:
+        engine.dispose()
+
+    return {"message": f"{inserted} prix injectes dans la base", "countries": len(countries_markets), "commodities": len(commodities_prices)}
+
+
 @router.get("/status")
 async def sync_status():
     """Get last 50 sync log entries."""

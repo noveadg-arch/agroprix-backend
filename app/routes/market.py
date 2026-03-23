@@ -1,10 +1,124 @@
-from fastapi import APIRouter, Query, Response
-from typing import Optional
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, Query, Response
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+from sqlalchemy import text
+
 from app.connectors.scraper import search_buyers, get_buyer_detail, SIMULATED_BUYERS
 from app.services.matching import find_matches
 from app.services.pdf_report import generate_price_report
+from app.auth import get_current_user
+from app.database import get_engine
 
 router = APIRouter(tags=["market"])
+
+# ---------------------------------------------------------------------------
+# Marketplace Offers (P2P)
+# ---------------------------------------------------------------------------
+
+class MarketOffer(BaseModel):
+    type: str  # "sell" or "buy"
+    crop: str
+    crop_name: str
+    quantity: float
+    unit: Optional[str] = "tonnes"
+    price: float
+    price_unit: Optional[str] = "FCFA/kg"
+    market: str
+    description: Optional[str] = ""
+    phone: Optional[str] = ""
+    country: Optional[str] = "benin"
+
+
+@router.get("/offers")
+async def list_offers(
+    country: Optional[str] = None,
+    crop: Optional[str] = None,
+    offer_type: Optional[str] = None,
+):
+    """List marketplace offers (sell/buy)."""
+    engine = get_engine()
+    try:
+        conditions = ["1=1"]
+        params: dict = {}
+        if country:
+            conditions.append("country = :country")
+            params["country"] = country
+        if crop:
+            conditions.append("crop LIKE :crop")
+            params["crop"] = f"%{crop}%"
+        if offer_type:
+            conditions.append("type = :type")
+            params["type"] = offer_type
+        where = " AND ".join(conditions)
+        q = text(f"""
+            SELECT * FROM marketplace_offers
+            WHERE {where}
+            ORDER BY created_at DESC
+            LIMIT 100
+        """)
+        with engine.connect() as conn:
+            result = conn.execute(q, params)
+            rows = [dict(r._mapping) for r in result]
+    except Exception:
+        rows = []
+    finally:
+        engine.dispose()
+    return {"count": len(rows), "offers": rows}
+
+
+@router.post("/offers", status_code=201)
+async def create_offer(
+    body: MarketOffer,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Create a marketplace offer (sell or buy)."""
+    engine = get_engine()
+    now = datetime.now(timezone.utc).isoformat()
+    user_name = current_user.get("name", "Anonyme")
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS marketplace_offers (
+                    id SERIAL PRIMARY KEY,
+                    type VARCHAR(10),
+                    crop VARCHAR(100),
+                    crop_name VARCHAR(100),
+                    quantity FLOAT,
+                    unit VARCHAR(20),
+                    price FLOAT,
+                    price_unit VARCHAR(20),
+                    market VARCHAR(100),
+                    description TEXT,
+                    seller VARCHAR(100),
+                    phone VARCHAR(50),
+                    country VARCHAR(50),
+                    status VARCHAR(20) DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO marketplace_offers (type, crop, crop_name, quantity, unit, price, price_unit, market, description, seller, phone, country)
+                VALUES (:type, :crop, :crop_name, :quantity, :unit, :price, :price_unit, :market, :description, :seller, :phone, :country)
+            """), {
+                "type": body.type,
+                "crop": body.crop,
+                "crop_name": body.crop_name,
+                "quantity": body.quantity,
+                "unit": body.unit or "tonnes",
+                "price": body.price,
+                "price_unit": body.price_unit or "FCFA/kg",
+                "market": body.market,
+                "description": body.description or "",
+                "seller": user_name,
+                "phone": body.phone or "",
+                "country": body.country or "benin",
+            })
+    finally:
+        engine.dispose()
+
+    return {"message": "Offre publiee avec succes", "seller": user_name}
 
 
 @router.get("/buyers")
