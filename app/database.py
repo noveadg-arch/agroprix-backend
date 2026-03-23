@@ -174,6 +174,31 @@ def sql_date_months_ago(months: int) -> str:
         return "(CURRENT_DATE - INTERVAL '{} months')".format(months)
 
 
+def _ensure_enriched_columns(engine) -> None:
+    """Add enriched profile columns to users table if they don't exist (safe migration)."""
+    columns_to_add = [
+        ("cultures", "VARCHAR"),
+        ("superficie", "FLOAT"),
+        ("genre", "VARCHAR"),
+        ("age", "INTEGER"),
+        ("experience", "INTEGER"),
+        ("type_exploitation", "VARCHAR"),
+        ("membre_cooperative", "VARCHAR"),
+        ("profil_type", "VARCHAR"),
+    ]
+    from sqlalchemy import text, inspect
+    try:
+        inspector = inspect(engine)
+        existing = [c["name"] for c in inspector.get_columns("users")]
+        with engine.begin() as conn:
+            for col_name, col_type in columns_to_add:
+                if col_name not in existing:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}"))
+                    print(f"[AgroPrix] Added column users.{col_name}")
+    except Exception as e:
+        print(f"[AgroPrix] Migration note: {e}")
+
+
 def init_db() -> None:
     """Create all tables if they do not exist yet."""
     # Ensure the data/ directory exists for SQLite
@@ -184,6 +209,7 @@ def init_db() -> None:
     try:
         engine = get_engine()
         metadata.create_all(engine)
+        _ensure_enriched_columns(engine)
         print("[AgroPrix] Database initialized successfully")
     except Exception as e:
         print(f"[AgroPrix] WARNING: Database init failed: {e}")
