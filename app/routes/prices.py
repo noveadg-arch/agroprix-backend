@@ -100,7 +100,7 @@ async def get_monthly_averages(
         q = text(f"""
             SELECT
                 {sql_year_month('date')} as month,
-                ROUND(AVG(price), 1) as avg_price,
+                ROUND(AVG(price)::NUMERIC, 1) as avg_price,
                 MIN(price) as min_price,
                 MAX(price) as max_price,
                 COUNT(DISTINCT market) as num_markets
@@ -195,7 +195,7 @@ async def compare_regional(
         q = text(f"""
             SELECT
                 country,
-                ROUND(AVG(price), 1) as avg_price,
+                ROUND(AVG(price)::NUMERIC, 1) as avg_price,
                 MIN(price) as min_price,
                 MAX(price) as max_price,
                 COUNT(DISTINCT market) as num_markets

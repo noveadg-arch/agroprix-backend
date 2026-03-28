@@ -81,7 +81,7 @@ async def get_price_weather_correlation(
                 w.humidity
             FROM (
                 SELECT {sql_year_month('date')} as month,
-                       ROUND(AVG(price), 1) as avg_price
+                       ROUND(AVG(price)::NUMERIC, 1) as avg_price
                 FROM prices
                 WHERE country = :country AND commodity LIKE :commodity
                 GROUP BY {sql_year_month('date')}
