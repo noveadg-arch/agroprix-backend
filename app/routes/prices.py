@@ -127,10 +127,10 @@ async def list_markets(
     engine = get_engine()
     try:
         q = text(f"""
-            SELECT DISTINCT
+            SELECT
                 market,
-                latitude,
-                longitude,
+                MAX(latitude) as latitude,
+                MAX(longitude) as longitude,
                 MAX({sql_year_month('date')}) as last_update,
                 COUNT(DISTINCT commodity) as commodities_tracked
             FROM prices
