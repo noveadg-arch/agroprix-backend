@@ -143,19 +143,16 @@ def is_sqlite():
 
 
 def sql_year_month(col):
-    """Return SQL expression for YYYY-MM extraction, compatible with SQLite and PostgreSQL."""
-    if is_sqlite():
-        return "strftime('%Y-%m', {})".format(col)
-    else:
-        return "to_char({}::date, 'YYYY-MM')".format(col)
+    """Return SQL expression for YYYY-MM extraction, compatible with SQLite and PostgreSQL.
+    Uses SUBSTR(col, 1, 7) which works on both since date is stored as VARCHAR 'YYYY-MM-DD'.
+    Avoids to_char(date::date) which fails when 'date' is a reserved word in PostgreSQL.
+    """
+    return "SUBSTR({}, 1, 7)".format(col)
 
 
 def sql_month_num(col):
     """Return SQL for extracting month number (1-12), compatible with SQLite and PostgreSQL."""
-    if is_sqlite():
-        return "CAST(strftime('%m', {}) AS INTEGER)".format(col)
-    else:
-        return "EXTRACT(MONTH FROM {}::date)::INTEGER".format(col)
+    return "CAST(SUBSTR({}, 6, 2) AS INTEGER)".format(col)
 
 
 def sql_year_month_from_ym(year_col, month_col):
