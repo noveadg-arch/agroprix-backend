@@ -21,6 +21,7 @@ from app.routes.sync import router as sync_router
 from app.routes.recommendations import router as recommendations_router
 from app.routes.auth import router as auth_router
 from app.routes.market import router as market_router
+from app.routes.health import router as health_router
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,7 @@ app.include_router(weather_router, prefix="/api/weather")
 app.include_router(sync_router, prefix="/api/sync")
 app.include_router(recommendations_router, prefix="/api/recommendations")
 app.include_router(market_router, prefix="/api/market")
+app.include_router(health_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------
