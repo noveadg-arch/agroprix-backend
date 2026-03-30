@@ -7,23 +7,29 @@ from typing import Dict, List, Optional
 
 from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
-from passlib.hash import sha256_crypt
+import bcrypt
 
 from app.config import JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET
 
 
 # ---------------------------------------------------------------------------
-# Hachage de mot de passe (passlib sha256_crypt, pas besoin de bcrypt)
+# Hachage de mot de passe (bcrypt — resistant au brute-force)
 # ---------------------------------------------------------------------------
 
 def hash_password(password: str) -> str:
-    """Hache un mot de passe avec sha256_crypt."""
-    return sha256_crypt.hash(password)
+    """Hache un mot de passe avec bcrypt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verifie un mot de passe contre son hash."""
-    return sha256_crypt.verify(password, hashed)
+    """Verifie un mot de passe contre son hash bcrypt.
+    Supporte aussi les anciens hash sha256_crypt ($5$) pour migration progressive.
+    """
+    if hashed.startswith("$5$"):
+        # Legacy sha256_crypt — passlib fallback
+        from passlib.hash import sha256_crypt
+        return sha256_crypt.verify(password, hashed)
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 # ---------------------------------------------------------------------------

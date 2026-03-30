@@ -3,19 +3,22 @@ Sync endpoints — trigger data collection from all external APIs.
 Order for /all: exchange rates -> weather -> prices.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy import text
 
 from app.database import get_engine
+from app.auth import require_role
 from app.connectors.wfp import wfp_connector
 from app.connectors.nasa_power import nasa_connector
 from app.connectors.exchange_rate import exchange_connector
 
 router = APIRouter(prefix="", tags=["sync"])
 
+admin_only = require_role("admin")
 
-@router.post("/wfp")
+
+@router.post("/wfp", dependencies=[Depends(admin_only)])
 async def sync_wfp_prices(
     country: Optional[str] = Query(None, description="Country key, or all if omitted"),
 ):
@@ -28,7 +31,7 @@ async def sync_wfp_prices(
         return {"results": results}
 
 
-@router.post("/weather")
+@router.post("/weather", dependencies=[Depends(admin_only)])
 async def sync_nasa_weather(
     country: Optional[str] = Query(None, description="Country key, or all if omitted"),
 ):
@@ -41,14 +44,14 @@ async def sync_nasa_weather(
         return {"results": results}
 
 
-@router.post("/exchange-rates")
+@router.post("/exchange-rates", dependencies=[Depends(admin_only)])
 async def sync_exchange_rates():
     """Sync current exchange rates (XOF base)."""
     result = exchange_connector.sync_rates()
     return result
 
 
-@router.post("/all")
+@router.post("/all", dependencies=[Depends(admin_only)])
 async def sync_everything():
     """
     Sync ALL data sources in order:
@@ -74,7 +77,7 @@ async def sync_everything():
     return results
 
 
-@router.post("/seed")
+@router.post("/seed", dependencies=[Depends(admin_only)])
 async def seed_prices():
     """Inject initial price data for all UEMOA countries."""
     from datetime import datetime, timedelta

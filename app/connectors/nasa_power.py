@@ -46,7 +46,7 @@ class NASAPowerConnector:
         lat: float,
         lon: float,
         start_year: int = 2015,
-        end_year: int = 2025,
+        end_year: int = 2024,
     ) -> dict:
         """Fetch monthly weather data from NASA POWER.
 
