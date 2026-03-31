@@ -3,19 +3,73 @@ Sync endpoints — trigger data collection from all external APIs.
 Order for /all: exchange rates -> weather -> prices.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional
-from sqlalchemy import text
+from pydantic import BaseModel
+from sqlalchemy import text, select
 
-from app.database import get_engine
-from app.auth import require_role
+from app.database import get_engine, users
+from app.auth import require_role, hash_password
 from app.connectors.wfp import wfp_connector
 from app.connectors.nasa_power import nasa_connector
 from app.connectors.exchange_rate import exchange_connector
+from app.config import JWT_SECRET
 
 router = APIRouter(prefix="", tags=["sync"])
 
 admin_only = require_role("admin")
+
+
+# ---------------------------------------------------------------------------
+# Admin : créer un utilisateur avec un rôle spécifique
+# ---------------------------------------------------------------------------
+
+class CreateUserRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    role: str  # free / pro / expert / admin
+    phone: Optional[str] = None
+    country: Optional[str] = "benin"
+    admin_key: str
+
+
+@router.post("/create-user")
+async def admin_create_user(body: CreateUserRequest):
+    """Admin — crée un utilisateur avec le rôle souhaité. Protégé par admin_key."""
+    if body.admin_key != JWT_SECRET:
+        raise HTTPException(status_code=403, detail="Clé admin invalide")
+
+    valid_roles = {"free", "pro", "expert", "admin"}
+    if body.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées : {valid_roles}")
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        existing = conn.execute(select(users).where(users.c.email == body.email)).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà")
+
+    hashed = hash_password(body.password)
+    with engine.begin() as conn:
+        result = conn.execute(
+            users.insert().values(
+                email=body.email,
+                password_hash=hashed,
+                name=body.name,
+                role=body.role,
+                phone=body.phone,
+                country=body.country or "benin",
+            )
+        )
+        user_id = result.inserted_primary_key[0]
+
+    return {
+        "message": f"Compte {body.role} créé avec succès",
+        "user_id": user_id,
+        "email": body.email,
+        "role": body.role,
+    }
 
 
 @router.post("/wfp", dependencies=[Depends(admin_only)])
