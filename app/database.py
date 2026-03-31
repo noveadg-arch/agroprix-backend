@@ -133,7 +133,7 @@ def get_engine() -> Engine:
         connect_args = {}
         if DATABASE_URL.startswith("sqlite"):
             connect_args["check_same_thread"] = False
-        _engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False)
+        _engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False, pool_pre_ping=True)
     return _engine
 
 
