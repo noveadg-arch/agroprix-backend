@@ -141,8 +141,8 @@ async def seed_prices():
     engine = get_engine()
     countries_markets = {
         "benin": ["Dantokpa (Cotonou)", "Bohicon", "Parakou", "Malanville", "Glazoue", "Azove", "Natitingou", "Ketou"],
-        "burkina": ["Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Ouahigouya"],
-        "cote_ivoire": ["Abidjan", "Bouake", "Daloa", "Korhogo"],
+        "burkina_faso": ["Ouagadougou", "Bobo-Dioulasso", "Koudougou", "Ouahigouya"],
+        "cote_divoire": ["Abidjan", "Bouake", "Daloa", "Korhogo"],
         "mali": ["Bamako", "Sikasso", "Mopti", "Segou"],
         "niger": ["Niamey", "Maradi", "Zinder", "Agadez"],
         "senegal": ["Dakar", "Saint-Louis", "Kaolack", "Thies"],
@@ -150,11 +150,11 @@ async def seed_prices():
         "guinee_bissau": ["Bissau", "Bafata", "Gabu"],
     }
     commodities_prices = {
-        "Mais": 250, "Riz": 450, "Sorgho": 180, "Mil": 200, "Niebe": 500,
-        "Manioc": 150, "Igname": 400, "Tomate": 800, "Oignon": 350,
-        "Arachide": 600, "Cajou": 1200, "Soja": 380, "Piment": 900,
-        "Plantain": 320, "Ananas": 280, "Sesame": 700, "Karite": 450,
-        "Cafe": 1500, "Cacao": 1800, "Coton": 350, "Hevea": 650,
+        "maize": 250, "rice": 450, "sorghum": 180, "millet": 200, "cowpea": 500,
+        "cassava": 150, "yam": 400, "tomato": 800, "onion": 350,
+        "groundnuts": 600, "cajou": 1200, "soja": 380, "pepper": 900,
+        "plantain": 320, "pineapple": 280, "sesame": 700, "karite": 450,
+        "cafe": 1500, "cacao": 1800, "cotton": 350, "hevea": 650,
     }
 
     inserted = 0
