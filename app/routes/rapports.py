@@ -60,7 +60,7 @@ def _fetch_monthly(engine, country: str, commodity: str, start_date: Optional[st
     where = " AND ".join(conditions)
     q = text(f"""
         SELECT {sql_year_month('date')} as mois,
-               ROUND(AVG(price), 1) as prix_moyen,
+               ROUND(CAST(AVG(price) AS numeric), 1) as prix_moyen,
                MIN(price) as prix_min,
                MAX(price) as prix_max,
                COUNT(DISTINCT market) as nb_marches,
@@ -75,7 +75,7 @@ def _fetch_monthly(engine, country: str, commodity: str, start_date: Optional[st
 
 def _fetch_compare(engine, commodity: str):
     q = text(f"""
-        SELECT country, ROUND(AVG(price), 1) as prix_moyen,
+        SELECT country, ROUND(CAST(AVG(price) AS numeric), 1) as prix_moyen,
                COUNT(DISTINCT market) as nb_marches, MAX(date) as derniere_date
         FROM prices WHERE commodity LIKE :commodity
         GROUP BY country ORDER BY prix_moyen DESC

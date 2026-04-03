@@ -281,7 +281,7 @@ async def public_commodities(
             MIN(date) as first_date,
             MAX(date) as last_date,
             COUNT(*) as total_records,
-            ROUND(AVG(price), 1) as avg_price_xof,
+            ROUND(CAST(AVG(price) AS numeric), 1) as avg_price_xof,
             MIN(price) as min_price_xof,
             MAX(price) as max_price_xof
         FROM prices
@@ -338,7 +338,7 @@ async def public_compare(
     q = text(f"""
         SELECT
             country,
-            ROUND(AVG(price), 1) as avg_price_xof,
+            ROUND(CAST(AVG(price) AS numeric), 1) as avg_price_xof,
             MIN(price) as min_price_xof,
             MAX(price) as max_price_xof,
             COUNT(DISTINCT market) as num_markets,
