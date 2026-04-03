@@ -22,6 +22,9 @@ from app.routes.recommendations import router as recommendations_router
 from app.routes.auth import router as auth_router
 from app.routes.market import router as market_router
 from app.routes.health import router as health_router
+from app.routes.public_v1 import router as public_v1_router
+from app.routes.parcelles import router as parcelles_router
+from app.routes.rapports import router as rapports_router
 
 
 # ---------------------------------------------------------------------------
@@ -43,8 +46,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AgroPrix API",
-    description="Agricultural price intelligence for West Africa (UEMOA)",
-    version="1.0.0",
+    description=(
+        "## Agricultural price intelligence for West Africa — UEMOA zone\n\n"
+        "**Provider:** 33Lab · Cotonou, Bénin · agroprix.app\n\n"
+        "### Public API v1 (`/api/v1/`)\n"
+        "Open data endpoints for institutional partners. Requires a free API key.\n"
+        "Register: `POST /api/v1/keys/register`\n\n"
+        "**Compatible with:** ECOAGRIS/ECOWAS · World Bank AgriConnect · "
+        "USAID Digital Frontiers · Enabel · GIZ · AFD · IFAD · AfDB\n\n"
+        "**Standards:** OpenAPI 3.0 · GeoJSON RFC 7946 · AGROVOC · EUDR-ready\n\n"
+        "**EUDR-relevant commodities:** cacao · cajou · café · soja · hévéa"
+    ),
+    version="2.0.0",
+    contact={"name": "33Lab", "url": "https://agroprix.app", "email": "api@agroprix.app"},
+    license_info={"name": "CC BY 4.0", "url": "https://creativecommons.org/licenses/by/4.0/"},
     lifespan=lifespan,
 )
 
@@ -72,13 +87,16 @@ app.add_middleware(
 # Routers (API routes are registered BEFORE the static-files catch-all)
 # ---------------------------------------------------------------------------
 
-app.include_router(auth_router, prefix="/api/auth")
-app.include_router(prices_router, prefix="/api/prices")
-app.include_router(weather_router, prefix="/api/weather")
-app.include_router(sync_router, prefix="/api/sync")
+app.include_router(auth_router,            prefix="/api/auth")
+app.include_router(prices_router,          prefix="/api/prices")
+app.include_router(weather_router,         prefix="/api/weather")
+app.include_router(sync_router,            prefix="/api/sync")
 app.include_router(recommendations_router, prefix="/api/recommendations")
-app.include_router(market_router, prefix="/api/market")
-app.include_router(health_router, prefix="/api")
+app.include_router(market_router,          prefix="/api/market")
+app.include_router(health_router,          prefix="/api")
+app.include_router(public_v1_router,       prefix="/api/v1")
+app.include_router(parcelles_router,       prefix="/api/parcelles")
+app.include_router(rapports_router,        prefix="/api/rapports")
 
 
 # ---------------------------------------------------------------------------
@@ -90,14 +108,21 @@ async def api_root():
     """API information and available endpoints."""
     return {
         "name": "AgroPrix API",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "provider": "33Lab — Cotonou, Bénin",
+        "documentation": "/docs",
+        "ecoagris_compatible": True,
+        "eudr_ready": True,
         "endpoints": {
+            "public_v1": "/api/v1/ (API key required — POST /api/v1/keys/register)",
             "auth": "/api/auth",
             "prices": "/api/prices",
+            "parcelles": "/api/parcelles (JWT required)",
+            "rapports": "/api/rapports/pdf | /api/rapports/excel",
             "weather": "/api/weather",
-            "sync": "/api/sync",
             "recommendations": "/api/recommendations",
             "market": "/api/market",
+            "health": "/api/health",
         },
     }
 
@@ -107,14 +132,21 @@ async def root():
     """Root redirect / health-check."""
     return {
         "name": "AgroPrix API",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "provider": "33Lab — Cotonou, Bénin",
+        "documentation": "/docs",
+        "ecoagris_compatible": True,
+        "eudr_ready": True,
         "endpoints": {
+            "public_v1": "/api/v1/ (API key required — POST /api/v1/keys/register)",
             "auth": "/api/auth",
             "prices": "/api/prices",
+            "parcelles": "/api/parcelles (JWT required)",
+            "rapports": "/api/rapports/pdf | /api/rapports/excel",
             "weather": "/api/weather",
-            "sync": "/api/sync",
             "recommendations": "/api/recommendations",
             "market": "/api/market",
+            "health": "/api/health",
         },
     }
 

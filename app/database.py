@@ -113,11 +113,46 @@ users = Table(
     Column("profil_type", String, nullable=True),        # producteur/negociant/exportateur/proprietaire
 )
 
+parcelles = Table(
+    "parcelles",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("user_id", Integer, nullable=False),
+    Column("nom", String(128), nullable=False),
+    Column("culture", String(64), nullable=False),    # cacao, cajou, mais, riz, soja…
+    Column("surface_ha", Float, nullable=True),
+    Column("lat", Float, nullable=True),
+    Column("lng", Float, nullable=True),
+    Column("pays", String(64), default="benin"),
+    Column("region", String(128), nullable=True),
+    Column("date_plantation", String(32), nullable=True),  # YYYY-MM-DD
+    Column("notes", Text, nullable=True),
+    Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
+    Column("updated_at", DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
+api_keys = Table(
+    "api_keys",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("key_hash", String(64), unique=True, nullable=False),  # SHA-256 of raw key
+    Column("name", String(128), nullable=False),
+    Column("org", String(256), nullable=False),
+    Column("email", String(256), nullable=False),
+    Column("plan", String(32), default="free"),       # free | institutional
+    Column("use_case", Text, nullable=True),
+    Column("is_active", Integer, default=1),
+    Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc)),
+    Column("last_used_at", DateTime, nullable=True),
+)
+
 Index("ix_users_email", users.c.email)
 Index("ix_prices_country", prices.c.country)
 Index("ix_prices_commodity", prices.c.commodity)
 Index("ix_prices_date", prices.c.date)
 Index("ix_weather_country", weather.c.country)
+Index("ix_parcelles_user_id", parcelles.c.user_id)
+Index("ix_api_keys_hash", api_keys.c.key_hash)
 
 # ---------------------------------------------------------------------------
 # Engine helpers
