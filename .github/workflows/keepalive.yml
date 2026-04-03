@@ -1,4 +1,4 @@
-name: Keep-alive Railway Backend
+name: Keep-alive Render Backend
 
 on:
   schedule:
@@ -12,12 +12,12 @@ jobs:
     steps:
       - name: Ping AgroPrix API health endpoint
         run: |
-          echo "Pinging AgroPrix Railway backend..."
+          echo "Pinging AgroPrix Render backend..."
           response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://web-production-46fb2.up.railway.app/api/health)
+            https://agroprix-api.onrender.com/api/health)
           echo "HTTP response: $response"
           if [ "$response" = "200" ] || [ "$response" = "207" ]; then
-            echo "✅ Backend is alive"
+            echo "Backend is alive"
           else
-            echo "⚠️ Backend returned $response — Railway may be starting up (cold start ~30s)"
+            echo "Backend returned $response — Render may be starting up (cold start ~50s)"
           fi
