@@ -199,11 +199,12 @@ def sql_year_month_from_ym(year_col, month_col):
 
 
 def sql_date_months_ago(months: int) -> str:
-    """Return SQL expression for a date N months in the past, compatible with SQLite and PostgreSQL."""
+    """Return SQL expression for a date N months in the past, compatible with SQLite and PostgreSQL.
+    Returns a text string 'YYYY-MM-DD' so it can be compared with VARCHAR date columns."""
     if is_sqlite():
         return "date('now', '-{} months')".format(months)
     else:
-        return "(CURRENT_DATE - INTERVAL '{} months')".format(months)
+        return "TO_CHAR(CURRENT_DATE - INTERVAL '{} months', 'YYYY-MM-DD')".format(months)
 
 
 def _ensure_enriched_columns(engine) -> None:
