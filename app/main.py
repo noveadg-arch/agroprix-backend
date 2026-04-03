@@ -25,6 +25,7 @@ from app.routes.health import router as health_router
 from app.routes.public_v1 import router as public_v1_router
 from app.routes.parcelles import router as parcelles_router
 from app.routes.rapports import router as rapports_router
+from app.routes.subscriptions import router as subscriptions_router
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ app.include_router(health_router,          prefix="/api")
 app.include_router(public_v1_router,       prefix="/api/v1")
 app.include_router(parcelles_router,       prefix="/api/parcelles")
 app.include_router(rapports_router,        prefix="/api/rapports")
+app.include_router(subscriptions_router,   prefix="/api")
 
 
 # ---------------------------------------------------------------------------
