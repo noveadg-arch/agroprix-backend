@@ -150,7 +150,8 @@ async def export_pdf(
     }
     cn = country_names.get(country, country.replace("_", " ").title())
     iso3 = UEMOA_COUNTRIES.get(country, {}).get("iso3", "")
-    period = f"{start_date or 'début'} → {end_date or 'aujourd\'hui'}"
+    _today = "aujourd'hui"
+    period = f"{start_date or 'début'} → {end_date or _today}"
     now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     elems = []
@@ -325,6 +326,7 @@ async def export_excel(
     prices_data  = _fetch_prices(engine, country, commodity, start_date, end_date)
     monthly_data = _fetch_monthly(engine, country, commodity, start_date, end_date)
     compare_data = _fetch_compare(engine, commodity)
+    _today = "aujourd'hui"
 
     wb = openpyxl.Workbook()
 
@@ -427,7 +429,7 @@ async def export_excel(
         ["Pays", country_names.get(country, country)],
         ["ISO3", UEMOA_COUNTRIES.get(country, {}).get("iso3", "")],
         ["Filière", commodity.title()],
-        ["Période", f"{start_date or 'toutes dates'} → {end_date or 'aujourd\'hui'}"],
+        ["Période", f"{start_date or 'toutes dates'} → {end_date or _today}"],
         ["Généré le", datetime.now().strftime("%Y-%m-%d %H:%M UTC")],
         ["Généré par", current_user.get("name", "AgroPrix")],
         ["Nb enregistrements prix", len(prices_data)],
