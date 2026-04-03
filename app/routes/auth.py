@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy import select, update
 
 from app.auth import (
