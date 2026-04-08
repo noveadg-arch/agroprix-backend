@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from app.auth import (
@@ -32,7 +32,7 @@ router = APIRouter(tags=["auth"])
 
 class RegisterRequest(BaseModel):
     email: str
-    password: str
+    password: str = Field(..., min_length=6, description="Minimum 6 caracteres")
     name: str
     phone: Optional[str] = None
     country: Optional[str] = "benin"

@@ -5,6 +5,7 @@ Agricultural price intelligence for West Africa (UEMOA).
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,8 +13,10 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.config import ALLOWED_ORIGINS, DEBUG, HOST, PORT
+from app.config import ALLOWED_ORIGINS, DEBUG, HOST, PORT, JWT_SECRET
 from app.database import init_db
+
+logger = logging.getLogger("agroprix")
 from app.middleware import RateLimitMiddleware, SecurityHeadersMiddleware, limiter
 from app.routes.prices import router as prices_router
 from app.routes.weather import router as weather_router
@@ -38,6 +41,13 @@ async def lifespan(app: FastAPI):
     data_dir = Path(__file__).resolve().parent.parent / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     init_db()
+
+    # Security checks
+    if JWT_SECRET == "agroprix-dev-secret-change-in-production":
+        logger.warning("⚠️  SECURITE : JWT_SECRET utilise la valeur par defaut ! Definir JWT_SECRET dans les variables Railway.")
+    if "*" in ALLOWED_ORIGINS:
+        logger.warning("⚠️  SECURITE : CORS autorise toutes les origines (*). Definir ALLOWED_ORIGINS=https://agroprix.app dans Railway.")
+
     yield
 
 
