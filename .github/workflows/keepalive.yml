@@ -13,11 +13,11 @@ jobs:
       - name: Ping AgroPrix API health endpoint
         run: |
           echo "Pinging AgroPrix Render backend..."
-          response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://agroprix-api.onrender.com/api/health)
+          response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 --retry 2 --retry-delay 10 \
+            https://agroprix-api.onrender.com/api/health) || response="timeout"
           echo "HTTP response: $response"
           if [ "$response" = "200" ] || [ "$response" = "207" ]; then
             echo "Backend is alive"
           else
-            echo "Backend returned $response — Render may be starting up (cold start ~50s)"
+            echo "Backend returned $response — cold start normal, next ping will confirm"
           fi
