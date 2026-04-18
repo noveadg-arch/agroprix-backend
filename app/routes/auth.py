@@ -10,7 +10,7 @@ PUT  /api/auth/me        - Mise a jour du profil (auth requise)
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
@@ -22,6 +22,7 @@ from app.auth import (
 )
 from app.config import RATE_LIMIT_EXPERT, RATE_LIMIT_FREE, RATE_LIMIT_PRO
 from app.database import get_engine, users
+from app.middleware import limiter
 
 router = APIRouter(tags=["auth"])
 
@@ -98,8 +99,12 @@ def _user_response(row: Dict) -> Dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest):
-    """Inscription d'un nouvel utilisateur."""
+@limiter.limit("5/minute")
+async def register(request: Request, body: RegisterRequest):
+    """Inscription d'un nouvel utilisateur.
+
+    Rate-limite a 5/minute par IP pour bloquer le spam de creation de comptes.
+    """
     engine = get_engine()
 
     # Verifier si l'email existe deja
@@ -153,8 +158,12 @@ async def register(body: RegisterRequest):
 # ---------------------------------------------------------------------------
 
 @router.post("/login")
-async def login(body: LoginRequest):
-    """Connexion d'un utilisateur existant."""
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginRequest):
+    """Connexion d'un utilisateur existant.
+
+    Rate-limite a 10/minute par IP pour limiter le brute-force de mots de passe.
+    """
     engine = get_engine()
 
     with engine.connect() as conn:

@@ -13,7 +13,7 @@ from app.auth import require_role, hash_password
 from app.connectors.wfp import wfp_connector
 from app.connectors.nasa_power import nasa_connector
 from app.connectors.exchange_rate import exchange_connector
-from app.config import JWT_SECRET
+from app.config import ADMIN_KEY
 
 router = APIRouter(prefix="", tags=["sync"])
 
@@ -36,8 +36,17 @@ class CreateUserRequest(BaseModel):
 
 @router.post("/create-user")
 async def admin_create_user(body: CreateUserRequest):
-    """Admin — crée un utilisateur avec le rôle souhaité. Protégé par admin_key."""
-    if body.admin_key != JWT_SECRET:
+    """Admin — crée un utilisateur avec le rôle souhaité. Protégé par ADMIN_KEY.
+
+    Requiert la variable d'env ADMIN_KEY (distincte de JWT_SECRET). Si absente,
+    l'endpoint refuse toute requête.
+    """
+    if not ADMIN_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Endpoint admin desactive : ADMIN_KEY non configuree cote serveur.",
+        )
+    if body.admin_key != ADMIN_KEY:
         raise HTTPException(status_code=403, detail="Clé admin invalide")
 
     valid_roles = {"free", "pro", "expert", "admin"}

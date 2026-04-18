@@ -42,6 +42,14 @@ JWT_SECRET = os.getenv("JWT_SECRET", "agroprix-dev-secret-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "72"))
 
+# Admin key (for /api/sync/create-user and other admin-only endpoints without JWT).
+# MUST be distinct from JWT_SECRET. Empty by default -> endpoint refuses to run.
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+
+# Demo mode : si True, un header Authorization manquant ou "Bearer demo"
+# retourne un utilisateur fictif. NE PAS activer en production.
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() in ("true", "1", "yes")
+
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------

@@ -98,19 +98,25 @@ async def activate_subscription(
     body: SubscriptionRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Active un plan pour l'utilisateur après succès côté frontend.
+    """Enregistre l'intention de paiement d'un plan.
 
-    ⚠️ Cette activation est PROVISOIRE : elle passe l'utilisateur en 'pro'/'expert'
-    immédiatement pour une bonne UX, mais la trace `payments` reste à `pending`
-    tant que le webhook FedaPay ne confirme pas la transaction.
+    IMPORTANT : cet endpoint ne modifie PAS le role de l'utilisateur. Il se
+    contente d'inserer une ligne 'pending_webhook' dans la table payments. Le
+    role n'est mis a jour que par le webhook FedaPay apres re-verification
+    cote serveur (voir /subscriptions/fedapay/webhook).
+
+    Eviter d'upgrader immediatement empeche un utilisateur d'obtenir les
+    features premium sans paiement effectif.
     """
     role = _PLAN_TO_ROLE.get(body.plan)
     if not role:
         raise HTTPException(400, detail=f"Plan inconnu : {body.plan}")
 
-    # Vérification montant attendu (anti-manipulation frontend)
+    # Verification montant attendu (anti-manipulation frontend)
     expected = _PLAN_AMOUNTS.get(body.plan)
-    if expected and body.montant != expected:
+    if expected is None:
+        raise HTTPException(400, detail=f"Plan sans grille tarifaire : {body.plan}")
+    if body.montant != expected:
         raise HTTPException(400, detail=f"Montant incoherent pour {body.plan} : {body.montant} vs {expected}")
 
     _ensure_payments_table()
@@ -118,12 +124,8 @@ async def activate_subscription(
     engine = get_engine()
     now = datetime.now(timezone.utc).isoformat()
 
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE users SET role = :role WHERE id = :uid"),
-            {"role": role, "uid": user_id},
-        )
-        if body.transactionId:
+    if body.transactionId:
+        with engine.begin() as conn:
             conn.execute(text("""
                 INSERT OR IGNORE INTO payments
                     (user_id, plan, amount, transaction_id, status, created_at)
@@ -137,10 +139,14 @@ async def activate_subscription(
         "success": True,
         "user_id": user_id,
         "plan": body.plan,
-        "role": role,
+        "role_pending": role,
         "transactionId": body.transactionId,
-        "activated_at": now,
-        "confirmation": "provisoire — confirmation webhook FedaPay en attente",
+        "registered_at": now,
+        "status": "pending_webhook",
+        "confirmation": (
+            "Intention enregistree. Le role sera active apres confirmation "
+            "du webhook FedaPay (generalement < 1 min)."
+        ),
     }
 
 

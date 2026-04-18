@@ -9,7 +9,7 @@ from fastapi import HTTPException, Request, status
 from jose import JWTError, jwt
 import bcrypt
 
-from app.config import JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET
+from app.config import DEMO_MODE, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET
 
 
 # ---------------------------------------------------------------------------
@@ -87,15 +87,20 @@ async def get_current_user(request: Request) -> Dict:
     Usage dans un endpoint :
         user = Depends(get_current_user)
     """
-    # Demo mode fallback: no header or token == "demo" → return demo user
+    # Demo mode fallback (desactive par defaut).
+    # Active uniquement si DEMO_MODE=true dans l'env, typiquement en staging.
     auth_header: Optional[str] = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return {"id": 0, "email": "demo@agroprix.com", "name": "Utilisateur Demo", "role": "free", "country": "benin"}
-    raw_token = auth_header[7:]
-    if raw_token == "demo":
-        return {"id": 0, "email": "demo@agroprix.com", "name": "Utilisateur Demo", "role": "free", "country": "benin"}
+    if DEMO_MODE:
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return {"id": 0, "email": "demo@agroprix.com", "name": "Utilisateur Demo", "role": "free", "country": "benin"}
+        raw_token = auth_header[7:]
+        if raw_token == "demo":
+            return {"id": 0, "email": "demo@agroprix.com", "name": "Utilisateur Demo", "role": "free", "country": "benin"}
+        token = raw_token
+    else:
+        # Production : header obligatoire.
+        token = _extract_token(request)
 
-    token = raw_token
     payload = decode_token(token)
 
     user_id = payload.get("sub")

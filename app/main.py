@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.config import ALLOWED_ORIGINS, DEBUG, HOST, PORT, JWT_SECRET
+from app.config import ALLOWED_ORIGINS, DEBUG, DEMO_MODE, HOST, PORT, JWT_SECRET
 from app.database import init_db
 
 logger = logging.getLogger("agroprix")
@@ -43,11 +43,32 @@ async def lifespan(app: FastAPI):
     data_dir.mkdir(parents=True, exist_ok=True)
     init_db()
 
-    # Security checks
-    if JWT_SECRET == "agroprix-dev-secret-change-in-production":
-        logger.warning("⚠️  SECURITE : JWT_SECRET utilise la valeur par defaut ! Definir JWT_SECRET dans les variables Railway.")
-    if "*" in ALLOWED_ORIGINS:
-        logger.warning("⚠️  SECURITE : CORS autorise toutes les origines (*). Definir ALLOWED_ORIGINS=https://agroprix.app dans Railway.")
+    # Security checks : en DEBUG on avertit, en prod on refuse le demarrage.
+    default_jwt = JWT_SECRET == "agroprix-dev-secret-change-in-production"
+    cors_wildcard = "*" in ALLOWED_ORIGINS
+
+    if DEBUG:
+        if default_jwt:
+            logger.warning("SECURITE : JWT_SECRET par defaut. Definir JWT_SECRET en prod.")
+        if cors_wildcard:
+            logger.warning("SECURITE : CORS autorise toutes les origines. Definir ALLOWED_ORIGINS.")
+        if DEMO_MODE:
+            logger.warning("SECURITE : DEMO_MODE actif — l'auth JWT peut etre contournee.")
+    else:
+        errors = []
+        if default_jwt:
+            errors.append("JWT_SECRET par defaut en production — refuse de demarrer.")
+        if cors_wildcard:
+            errors.append("CORS=* en production — definir ALLOWED_ORIGINS.")
+        if DEMO_MODE:
+            errors.append("DEMO_MODE=true en production — interdit.")
+        if errors:
+            for err in errors:
+                logger.error("SECURITE FATALE : %s", err)
+            raise RuntimeError(
+                "Refus de demarrer en production avec ces parametres : "
+                + " / ".join(errors)
+            )
 
     yield
 
@@ -64,10 +85,10 @@ app = FastAPI(
         "### Public API v1 (`/api/v1/`)\n"
         "Open data endpoints for institutional partners. Requires a free API key.\n"
         "Register: `POST /api/v1/keys/register`\n\n"
-        "**Compatible with:** ECOAGRIS/ECOWAS · World Bank AgriConnect · "
+        "**Compatibility roadmap (phase 2):** ECOAGRIS/ECOWAS · World Bank AgriConnect · "
         "USAID Digital Frontiers · Enabel · GIZ · AFD · IFAD · AfDB\n\n"
-        "**Standards:** OpenAPI 3.0 · GeoJSON RFC 7946 · AGROVOC · EUDR-ready\n\n"
-        "**EUDR-relevant commodities:** cacao · cajou · café · soja · hévéa"
+        "**Standards:** OpenAPI 3.0 · GeoJSON RFC 7946 · AGROVOC · EUDR compatibility in progress\n\n"
+        "**EUDR-relevant commodities tracked:** cacao · cajou · café · soja · hévéa"
     ),
     version="2.0.0",
     contact={"name": "33Lab", "url": "https://agroprix.app", "email": "api@agroprix.app"},
@@ -125,8 +146,8 @@ async def api_root():
         "version": "2.0.0",
         "provider": "33Lab — Cotonou, Bénin",
         "documentation": "/docs",
-        "ecoagris_compatible": True,
-        "eudr_ready": True,
+        "ecoagris_compatible": "phase_2_planned",
+        "eudr_ready": "phase_2_planned",
         "endpoints": {
             "public_v1": "/api/v1/ (API key required — POST /api/v1/keys/register)",
             "auth": "/api/auth",
@@ -149,8 +170,8 @@ async def root():
         "version": "2.0.0",
         "provider": "33Lab — Cotonou, Bénin",
         "documentation": "/docs",
-        "ecoagris_compatible": True,
-        "eudr_ready": True,
+        "ecoagris_compatible": "phase_2_planned",
+        "eudr_ready": "phase_2_planned",
         "endpoints": {
             "public_v1": "/api/v1/ (API key required — POST /api/v1/keys/register)",
             "auth": "/api/auth",
