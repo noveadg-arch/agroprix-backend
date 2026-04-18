@@ -85,9 +85,12 @@ async def health_check():
     # 3. NASA POWER API — accessibilité météo
     # -----------------------------------------------------------------------
     try:
-        # NASA POWER requires dates strictly in the past. Use J-7 to avoid
-        # edge cases around data-latency (NASA publishes with ~3-day delay).
-        nasa_day = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y%m%d")
+        # NASA POWER a une latence de publication tres variable selon les
+        # parametres (3 jours pour les tres recents, jusqu'a ~30 jours pour la
+        # reprocess pipeline). On utilise J-30 : suffisamment dans le passe
+        # pour garantir la disponibilite, mais encore recent pour etre un
+        # signal utile de sante de l'API.
+        nasa_day = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y%m%d")
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
                 NASA_POWER_BASE,
