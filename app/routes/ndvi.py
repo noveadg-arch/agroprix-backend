@@ -8,14 +8,19 @@ Endpoints :
     GET  /api/ndvi/health                       → test clé + quota
     POST /api/ndvi/scenes                       → scènes PlanetScope sur AOI + période
     GET  /api/ndvi/parcelle/{parcelle_id}       → séries NDVI pour une parcelle
+    POST /api/ndvi/order                        → (phase 2) soumet ordre bandmath NDVI
+    GET  /api/ndvi/order/{planet_order_id}      → (phase 2) poll état + récupère GeoTIFFs
 
-⚠️ Phase 1 (livrée ici) : listing des acquisitions Planet réelles disponibles
-(date, cloud_cover, item_id, preview). Les valeurs NDVI pixel-par-pixel sont
-calculées dans la phase 2 via l'Orders API + tool NDVI bandmath.
+Phase 1 : listing des acquisitions Planet réelles disponibles (date, cloud_cover,
+item_id, preview thumbnail).
 
-Phase 2 (à venir, ~1j dev) : POST /compute/ops/orders/v2/ avec tools
-[{"clip":{"aoi":...}}, {"bandmath":{"pl:bands":[{"expression":"(b4-b3)/(b4+b3)"}]}}]
-puis polling async pour récupérer les stats zonales NDVI par scène.
+Phase 2 (livrée) : Orders API async — POST /compute/ops/orders/v2 avec tools
+[{"clip":{"aoi":...}}, {"bandmath":{"pl:bands":[{"expression":"(b8-b6)/(b8+b6)"}]}}]
+sur PSScene 8-band (b6=red, b8=nir). Le client poll jusqu'à state=success puis
+télécharge le GeoTIFF NDVI généré.
+
+Phase 2b (à venir) : worker hors image Render (GDAL/rasterio) pour calculer les
+stats zonales (mean/min/max NDVI) à partir des GeoTIFF téléchargés.
 """
 
 from __future__ import annotations
@@ -44,8 +49,11 @@ router = APIRouter(prefix="", tags=["ndvi"])
 PLANET_API_KEY = os.getenv("PLANET_API_KEY", "")
 PLANET_API_BASE = "https://api.planet.com"
 PLANET_DATA_BASE = f"{PLANET_API_BASE}/data/v1"
+PLANET_ORDERS_BASE = f"{PLANET_API_BASE}/compute/ops/orders/v2"
 PLANET_ITEM_TYPE = "PSScene"                 # PlanetScope 8-band (compat ARPS)
 PLANET_MAX_CLOUD_COVER = 0.3                 # 30% max (tolérant pour UEMOA nuageux)
+# Bandes PSScene 8-band : b6=red, b8=nir → NDVI = (nir-red)/(nir+red)
+PLANET_NDVI_EXPRESSION = "(b8 - b6) / (b8 + b6)"
 
 
 def _auth_header() -> dict:
@@ -255,4 +263,189 @@ async def ndvi_parcelle(
             f"(< {int(max_cloud_cover*100)}% nuages). "
             "Phase 2 : calcul NDVI zonal via Orders API."
         ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Orders API : calcul NDVI pixel via bandmath
+# ---------------------------------------------------------------------------
+def _ensure_ndvi_orders_table():
+    """Table de suivi des ordres NDVI soumis à Planet."""
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ndvi_orders (
+                id SERIAL PRIMARY KEY,
+                planet_order_id VARCHAR(100) UNIQUE,
+                user_id INTEGER,
+                parcelle_id INTEGER,
+                item_ids TEXT,
+                aoi TEXT,
+                state VARCHAR(30) DEFAULT 'queued',
+                assets TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                last_polled_at TIMESTAMP
+            )
+        """))
+
+
+class NDVIOrderRequest(BaseModel):
+    parcelle_id: int
+    item_ids: list[str] = Field(..., min_length=1, max_length=20,
+                                 description="IDs PSScene (retournés par /ndvi/parcelle/{id})")
+
+
+@router.post("/ndvi/order")
+async def submit_ndvi_order(
+    body: NDVIOrderRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Soumet un ordre bandmath NDVI à Planet sur N scènes + AOI parcelle.
+
+    L'Orders API est asynchrone : on récupère un `planet_order_id` immédiatement,
+    puis on poll `/ndvi/order/{id}` jusqu'à `state=success`. Typiquement 2-10 min.
+    Chaque scène consomme du quota Planet (compter ~2 km² par scène pour un buffer
+    200m autour d'une parcelle).
+    """
+    import json as _json
+    engine = get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT * FROM parcelles WHERE id = :pid AND user_id = :uid"),
+            {"pid": body.parcelle_id, "uid": current_user["id"]},
+        ).mappings().fetchone()
+
+    if not row:
+        raise HTTPException(404, detail="Parcelle introuvable")
+
+    aoi = _parcelle_to_aoi(dict(row))
+
+    # Structure Orders API : produits + tools (clip → bandmath)
+    order_body = {
+        "name": f"AgroPrix_NDVI_parcelle_{body.parcelle_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        "products": [{
+            "item_ids": body.item_ids,
+            "item_type": PLANET_ITEM_TYPE,
+            "product_bundle": "analytic_8b_sr_udm2",  # 8-band Surface Reflectance
+        }],
+        "tools": [
+            {"clip": {"aoi": aoi}},
+            {"bandmath": {
+                "pl:bands": [{"expression": PLANET_NDVI_EXPRESSION}],
+            }},
+        ],
+        "delivery": {"single_archive": False},
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            PLANET_ORDERS_BASE,
+            headers=_auth_header(),
+            json=order_body,
+        )
+
+    if resp.status_code == 401:
+        raise HTTPException(401, detail="Cle Planet invalide")
+    if resp.status_code == 402:
+        raise HTTPException(402, detail="Quota Planet depasse — credits insuffisants")
+    if resp.status_code >= 400:
+        logger.warning("Planet order %s : %s", resp.status_code, resp.text[:400])
+        raise HTTPException(502, detail=f"Planet Orders erreur {resp.status_code}: {resp.text[:200]}")
+
+    data = resp.json()
+    planet_order_id = data.get("id")
+    state = data.get("state", "queued")
+
+    _ensure_ndvi_orders_table()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO ndvi_orders
+              (planet_order_id, user_id, parcelle_id, item_ids, aoi, state)
+            VALUES (:oid, :uid, :pid, :items, :aoi, :state)
+            ON CONFLICT (planet_order_id) DO NOTHING
+        """), {
+            "oid": planet_order_id,
+            "uid": current_user["id"],
+            "pid": body.parcelle_id,
+            "items": ",".join(body.item_ids),
+            "aoi": _json.dumps(aoi),
+            "state": state,
+        })
+
+    return {
+        "planet_order_id": planet_order_id,
+        "state": state,
+        "parcelle_id": body.parcelle_id,
+        "scene_count": len(body.item_ids),
+        "ndvi_expression": PLANET_NDVI_EXPRESSION,
+        "poll_url": f"/api/ndvi/order/{planet_order_id}",
+        "message": "Ordre soumis — pollez le poll_url toutes les 30s jusqu'a state=success (typ. 2-10 min).",
+    }
+
+
+@router.get("/ndvi/order/{planet_order_id}")
+async def poll_ndvi_order(
+    planet_order_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Poll l'état d'un ordre NDVI. Renvoie les URLs GeoTIFF quand state=success."""
+    import json as _json
+
+    # Vérifier propriété
+    engine = get_engine()
+    with engine.begin() as conn:
+        own = conn.execute(
+            text("SELECT id FROM ndvi_orders WHERE planet_order_id = :oid AND user_id = :uid"),
+            {"oid": planet_order_id, "uid": current_user["id"]},
+        ).fetchone()
+    if not own:
+        raise HTTPException(404, detail="Ordre introuvable ou non autorise")
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{PLANET_ORDERS_BASE}/{planet_order_id}",
+            headers=_auth_header(),
+        )
+
+    if resp.status_code == 404:
+        raise HTTPException(404, detail="Ordre inconnu cote Planet")
+    if resp.status_code >= 400:
+        raise HTTPException(502, detail=f"Planet Orders poll erreur {resp.status_code}")
+
+    data = resp.json()
+    state = data.get("state", "unknown")
+    # Quand success : _links._results[] contient les fichiers (incl. NDVI.tif)
+    results = (data.get("_links") or {}).get("results") or []
+    assets = [
+        {"name": r.get("name"), "url": r.get("location"),
+         "expires_at": r.get("expires_at")}
+        for r in results
+    ]
+    ndvi_tifs = [a for a in assets if a.get("name", "").endswith(".tif")
+                 or "bandmath" in (a.get("name") or "").lower()]
+
+    # Mise à jour DB
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE ndvi_orders
+               SET state = :state, assets = :assets, last_polled_at = NOW()
+             WHERE planet_order_id = :oid
+        """), {
+            "state": state,
+            "assets": _json.dumps(assets) if assets else None,
+            "oid": planet_order_id,
+        })
+
+    return {
+        "planet_order_id": planet_order_id,
+        "state": state,
+        "is_terminal": state in ("success", "failed", "partial", "cancelled"),
+        "assets_count": len(assets),
+        "ndvi_geotiffs": ndvi_tifs,
+        "all_assets": assets,
+        "note": (
+            "GeoTIFF NDVI pret pour telechargement (URLs valides ~1h). "
+            "Stats zonales (mean/min/max NDVI par parcelle) : phase 2b via worker "
+            "rasterio hors image Render."
+        ) if state == "success" else f"Ordre en cours (state={state})",
     }
