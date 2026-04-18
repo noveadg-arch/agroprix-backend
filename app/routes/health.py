@@ -85,17 +85,16 @@ async def health_check():
     # 3. NASA POWER API — accessibilité météo
     # -----------------------------------------------------------------------
     try:
-        # NASA POWER a une latence de publication tres variable selon les
-        # parametres (3 jours pour les tres recents, jusqu'a ~30 jours pour la
-        # reprocess pipeline). On utilise J-30 : suffisamment dans le passe
-        # pour garantir la disponibilite, mais encore recent pour etre un
-        # signal utile de sante de l'API.
-        nasa_day = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y%m%d")
+        # NASA_POWER_BASE pointe sur l'endpoint /monthly/point (utilise par le
+        # connecteur reel pour alimenter la meteo pays). Cet endpoint attend
+        # des dates au format YYYY (annee seule), pas YYYYMM ni YYYYMMDD.
+        # On sonde l'annee derniere pour garantir la disponibilite des donnees.
+        nasa_year = str(datetime.now(timezone.utc).year - 1)
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
                 NASA_POWER_BASE,
                 params={"parameters": "T2M", "community": "AG", "longitude": "2.3", "latitude": "6.4",
-                        "start": nasa_day, "end": nasa_day, "format": "JSON"},
+                        "start": nasa_year, "end": nasa_year, "format": "JSON"},
                 timeout=5.0,
             )
         nasa_ok = resp.status_code == 200

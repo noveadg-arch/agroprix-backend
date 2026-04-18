@@ -62,13 +62,16 @@ class NASAPowerConnector:
         dict
             Raw JSON response from the API.
         """
+        # NASA POWER /monthly/point expects YYYY for start/end (year only),
+        # NOT YYYYMM. A prior version used f"{year}01"/f"{year}12" which made
+        # every call silently fail with HTTP 422. Pass the year as-is.
         params = {
             "parameters": PARAMETERS,
             "community": "AG",
             "longitude": lon,
             "latitude": lat,
-            "start": f"{start_year}01",
-            "end": f"{end_year}12",
+            "start": str(start_year),
+            "end": str(end_year),
             "format": "JSON",
         }
 
