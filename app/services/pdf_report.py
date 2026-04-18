@@ -36,7 +36,8 @@ def generate_price_report(
     prices: List[Dict],  # [{date, price, market}]
     recommendation: Optional[Dict] = None,
     weather: Optional[Dict] = None,
-    user_name: str = "Utilisateur"
+    user_name: str = "Utilisateur",
+    data_source_note: str = "",
 ) -> bytes:
     """Generate a PDF price report and return as bytes."""
     buffer = BytesIO()
@@ -57,6 +58,15 @@ def generate_price_report(
     country_names = {"benin": "Bénin", "burkina": "Burkina Faso", "cote_ivoire": "Côte d'Ivoire", "guinee_bissau": "Guinée-Bissau", "mali": "Mali", "niger": "Niger", "senegal": "Sénégal", "togo": "Togo"}
     cn = country_names.get(country, country.title())
     elements.append(Paragraph(f"<b>Pays :</b> {cn} | <b>Culture :</b> {commodity.title()} | <b>Période :</b> 7 derniers jours", styles['APBody']))
+    if data_source_note:
+        is_warning = data_source_note.strip().startswith("⚠")
+        note_color = "#92400E" if is_warning else "#555555"
+        note_bg = "#FEF3C7" if is_warning else "#F0F7F4"
+        elements.append(Paragraph(
+            f'<para backcolor="{note_bg}" textColor="{note_color}" spaceBefore="4" '
+            f'leftIndent="6" rightIndent="6" spaceAfter="4"><i>{data_source_note}</i></para>',
+            styles['APBody']
+        ))
     elements.append(Spacer(1, 4*mm))
 
     # Price table
@@ -98,7 +108,7 @@ def generate_price_report(
 
     # Recommendation
     if recommendation:
-        elements.append(Paragraph("Recommandation IA", styles['APSection']))
+        elements.append(Paragraph("Recommandation de marché", styles['APSection']))
         action = recommendation.get("action", "ATTENDRE")
         confidence = recommendation.get("confidence", "modérée")
         elements.append(Paragraph(
