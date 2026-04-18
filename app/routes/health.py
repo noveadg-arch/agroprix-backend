@@ -4,7 +4,7 @@ Vérifie : base de données, données de prix, connectivité APIs externes.
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter
@@ -35,17 +35,25 @@ async def health_check():
             count_row = conn.execute(text("SELECT COUNT(*) FROM prices")).fetchone()
             price_count = count_row[0] if count_row else 0
 
-            # Dernière mise à jour
+            # Derniere observation (colonne `date` = date du releve WFP,
+            # plus pertinente pour l'utilisateur que `created_at`).
             latest_row = conn.execute(
-                text("SELECT MAX(created_at) FROM prices")
+                text("SELECT MAX(date) FROM prices")
             ).fetchone()
             latest = str(latest_row[0]) if latest_row and latest_row[0] else "unknown"
+
+            # Repartition par source pour diagnostiquer seed vs reel
+            src_rows = conn.execute(
+                text("SELECT source, COUNT(*) AS n FROM prices GROUP BY source ORDER BY n DESC")
+            ).fetchall()
+            sources = {r[0] or "null": r[1] for r in src_rows}
 
         results["database"] = {
             "status": "ok",
             "price_records": price_count,
-            "latest_record": latest,
-            "warning": "Aucun prix en base — lancer POST /api/sync/seed" if price_count == 0 else None,
+            "latest_observation": latest,
+            "by_source": sources,
+            "warning": "Aucun prix en base - lancer POST /api/sync/seed" if price_count == 0 else None,
         }
         if price_count == 0:
             degraded = True
@@ -63,7 +71,7 @@ async def health_check():
         results["wfp_api"] = {
             "status": "reachable" if wfp_ok else "unreachable",
             "http_code": resp.status_code,
-            "note": "Clé API WFP non configurée — données seedées utilisées" if resp.status_code in (401, 403) else None,
+            "note": "Cle API WFP non configuree - donnees seedees utilisees" if resp.status_code in (401, 403) else None,
         }
         if not wfp_ok:
             degraded = True
@@ -77,11 +85,14 @@ async def health_check():
     # 3. NASA POWER API — accessibilité météo
     # -----------------------------------------------------------------------
     try:
+        # NASA POWER requires dates strictly in the past. Use J-7 to avoid
+        # edge cases around data-latency (NASA publishes with ~3-day delay).
+        nasa_day = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y%m%d")
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
                 NASA_POWER_BASE,
                 params={"parameters": "T2M", "community": "AG", "longitude": "2.3", "latitude": "6.4",
-                        "start": "20260101", "end": "20260101", "format": "JSON"},
+                        "start": nasa_day, "end": nasa_day, "format": "JSON"},
                 timeout=5.0,
             )
         nasa_ok = resp.status_code == 200
